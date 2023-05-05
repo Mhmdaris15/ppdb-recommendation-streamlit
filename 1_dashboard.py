@@ -4,27 +4,21 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import re
-import os
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
-# from prettytable import PrettyTable
+from prettytable import PrettyTable
 import plotly.figure_factory as ff
 from IPython.display import display
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import optuna
+from scipy.stats.mstats import winsorize
+from streamlit import session_state as state
 
-
-
-from pathlib import Path
-
-test = Path(__file__).parents[1] # 'GarretBurhennData/Garret_Burhenn_Pitches.csv'
-# dir_name = os.path.abspath(os.path.dirname("__file__"))
-# test = os.path.join(dir_name, 'ppdb_2021.csv')
-# # location2 = os.path.join(dir_name, 'route.csv')
-ppdb21= pd.read_csv("./data/ppdb_2021.csv")
-ppdb20= pd.read_csv("./data/ppdb_2020.csv")
-ppdb22= pd.read_csv("./data/ppdb_2022.csv")
+ppdb21= pd.read_csv("ppdb_2021.csv")
+ppdb20= pd.read_csv("ppdb_2020.csv")
+ppdb22= pd.read_csv("ppdb_2022.csv")
 
 
 # with st.sidebar:
@@ -78,17 +72,17 @@ with st.container():
     print(set(ppdb22 == ppdb20.columns))
     
     #format penamaan buat rename
-    rename_cols = lambda col_name : "_".join(re.split("/| ", col_name.lower()))
+    rename_cols = lambda col_name: "_".join(re.split("/| ", col_name.lower())) if len(re.split("/| ", col_name.lower())) > 0 else col_name.lower()
+
     
     #merubah data dll
-    for year in range(20, 22):
-        # exec(f"ppdb{year}.insert(2, 'tahun_diterima', {year})") # insert year column to each dataset
+    for year in range(20, 23):
+        exec(f"ppdb{year}.insert(3, 'tahun_diterima', {year})") # insert year column to each dataset
         exec(f"ppdb{year}.rename(rename_cols, axis='columns', inplace=True)")
-        exec(f"ppdb{year}['pilihan'] = np.array([comp.split(' - ')[1] for comp in ppdb{year}.pilihan])") # reformat values of 'pilihan' column
         exec(f"ppdb{year}.loc[:, 'agama1':'skor'] = ppdb{year}.loc[:, 'agama1':'skor'].astype(float)") # convert data type
         exec(f"ppdb{year}['tanggal_lahir'] = pd.to_datetime(ppdb{year}['tanggal_lahir'])") # convert to date time type
-        
-    ppdb = pd.concat([ppdb20.assign(tahun_diterima=2020).copy(), ppdb21.assign(tahun_diterima=2021).copy(), ppdb22.assign(tahun_diterima=2022).copy()], ignore_index=True)
+    
+    ppdb = pd.concat([ppdb20, ppdb21, ppdb22], ignore_index=True)
     
     #remove outliers ppdb2020
     Q1 = ppdb20['skor'].quantile(0.25)
@@ -143,25 +137,25 @@ with st.container():
 
     # pakai chart yang berbentuk lingkaran dengan plotly
     fig = px.pie(n_regs, values='registrants', names='year', color='year',
-                color_discrete_sequence=['greenyellow', 'slateblue', 'red'])
+             color_discrete_sequence=['greenyellow', 'slateblue', 'red'])
 
     # atur title dan legend
     fig.update_layout(
-        title={
-            'text': "Jumlah Pendaftar Pada Tahun 2020, 2021 dan 2022",
-            'y':0.95,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': {'size': 16}
-        },
-        legend={
-            'y':0.5,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'middle'
-        }
-    )
+    title={
+        'text': "Jummlah pendaftar tahun 2020, 2021 dan 2022",
+        'y':0.95,
+        'x':0.5,
+        'xanchor': 'center',
+        'yanchor': 'top',
+        'font': {'size': 16}
+    },
+    legend={
+        'y':0.5,
+        'x':0.5,
+        'xanchor': 'center',
+        'yanchor': 'middle'
+    }
+)
 
     #teks keterangan
     st.markdown("""
@@ -180,119 +174,52 @@ with st.container():
         <br><br>
     """, unsafe_allow_html=True)
     
-    #kode untuk membuat chart jumlah pendaftar berdasarkan gender pada tahun 2020
-    fig20 = px.histogram(ppdb20, x="jenis_kelamin", color="jenis_kelamin", 
-                   color_discrete_sequence=["slateblue", "pink"])
+    # menghitung jumlah siswa per jenis kelamin dan tahun
+    ppdb_grouped = ppdb.groupby(['tahun_diterima', 'jenis_kelamin']).size().reset_index(name='jumlah_siswa')
 
-    fig20.update_layout(
+    # membuat visualisasi histogram
+    fig = px.histogram(ppdb_grouped, x='jenis_kelamin', y='jumlah_siswa', color='tahun_diterima', barmode='group',
+                    color_discrete_sequence=['#0077c2', '#b2301d', '#f6a800'])
+    fig.update_layout(
         title={
-            'text': "Jumlah Peserta PPDB 2020 Berdasarkan gender",
+            'text': "Jumlah Siswa PPDB Berdasarkan Jenis Kelamin per Tahunnya",
             'x':0.5,
             'y':0.95,
             'xanchor': 'center',
             'yanchor': 'top'
         },
         xaxis_title="Jenis Kelamin",
-        yaxis_title="Jumlah Peserta",
+        yaxis_title="Jumlah Siswa",
         font=dict(size=12)
     )
-    
-    
-    #kode untuk membuat chart jumlah pendaftar berdasarkan gender pada tahun 2021
-    fig21 = px.histogram(ppdb21, x="jenis_kelamin", color="jenis_kelamin", 
-                   color_discrete_sequence=["slateblue", "pink"])
 
-    fig21.update_layout(
+    st.plotly_chart(fig)
+    
+    # menghitung jumlah siswa per provinsi dan tahun diterima
+    ppdb_grouped = ppdb.groupby(['provinsi', 'tahun_diterima'])['nama_pendaftar'].count().reset_index()
+
+    # mengatur kombinasi warna
+    color_map = {'2020': '#0077c2', '2021': '#b2301d', '2022': '#f6a800'}
+
+    fig = px.histogram(ppdb_grouped[ppdb_grouped['tahun_diterima'] != 20.5][ppdb_grouped['tahun_diterima'] != 21.5], 
+                    x='provinsi', 
+                    y='nama_pendaftar', 
+                    color='tahun_diterima', 
+                    barmode='group',
+                    color_discrete_map=color_map)
+
+    fig.update_layout(
         title={
-            'text': "Jumlah Peserta PPDB 2022 Berdasarkan Gender",
+            'text': "Jumlah Siswa PPDB Berdasarkan Provinsi Asal per Tahunnya",
             'x':0.5,
             'y':0.95,
             'xanchor': 'center',
             'yanchor': 'top'
         },
-        xaxis_title="Jenis Kelamin",
-        yaxis_title="Jumlah Peserta",
+        xaxis_title="Provinsi Asal",
+        yaxis_title="Jumlah Siswa",
         font=dict(size=12)
     )
-    
-    #kode untuk membuat chart jumlah pendaftar berdasarkan gender pada tahun 2022
-    fig22 = px.histogram(ppdb22, x="jenis_kelamin", color="jenis_kelamin", 
-                   color_discrete_sequence=["slateblue", "pink"])
-
-    fig22.update_layout(
-        title={
-            'text': "Jumlah Peserta PPDB 2022 Berdasarkan Gender",
-            'x':0.5,
-            'y':0.95,
-            'xanchor': 'center',
-            'yanchor': 'top'
-        },
-        xaxis_title="Jenis Kelamin",
-        yaxis_title="Jumlah Peserta",
-        font=dict(size=12)
-    )
-    
-    
-    #teks keterangan
-    st.markdown("""
-        <div class="des-title" style='text-align: center;'>Selanjutnya kami akan memberikan data jumlah pendaftar berdasarkan gender<br>
-        dari tahun 2020-2022.</div>
-        <br><br>
-    """, unsafe_allow_html=True)
-
-    #menampilkan plot berdasarkan tahun
-    st.plotly_chart(fig20)
-    st.plotly_chart(fig21)
-    st.plotly_chart(fig22)
-    
-    #kode untuk memnuat plot data pendaftar berdsarkan provinsi dari tahun 2020
-    fig20 = px.histogram(ppdb20, x='provinsi', color_discrete_sequence=px.colors.qualitative.Set2)
-
-    fig20.update_layout(
-        title={
-            'text': "Jumlah Peserta PPDB 2020 Berdasarkan Provinsi Asal",
-            'y':0.95,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': {'size': 16}
-        },
-        xaxis_title="Provinsi",
-        yaxis_title="Jumlah Peserta",
-    )
-    
-    #kode untuk memnuat plot data pendaftar berdsarkan provinsi dari tahun 2021
-    fig21 = px.histogram(ppdb21, x='provinsi', color_discrete_sequence=px.colors.qualitative.Set2)
-
-    fig21.update_layout(
-        title={
-            'text': "Jumlah Peserta PPDB 2021 Berdasarkan Provinsi Asal",
-            'y':0.95,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': {'size': 16}
-        },
-        xaxis_title="Provinsi",
-        yaxis_title="Jumlah Peserta",
-    )
-    
-    #kode untuk memnuat plot data pendaftar berdsarkan provinsi dari tahun 2022
-    fig22 = px.histogram(ppdb22, x='provinsi', color_discrete_sequence=px.colors.qualitative.Set2)
-
-    fig22.update_layout(
-        title={
-            'text': "Jumlah Peserta PPDB 2020 Berdasarkan Provinsi Asal",
-            'y':0.95,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': {'size': 16}
-        },
-        xaxis_title="Provinsi",
-        yaxis_title="Jumlah Peserta",
-    )
-
     #teks keterangan
     st.markdown("""
         <div class="des-title" style='text-align: center;'>Pada data ppdb para pendaftar berasal dari beberapa provinsi, berikut data jumlah pendaftar<br>
@@ -300,10 +227,39 @@ with st.container():
         <br><br>
     """, unsafe_allow_html=True)
     
-    #menampilkan plot berdasarkan tahun
-    st.plotly_chart(fig20)
-    st.plotly_chart(fig21)
-    st.plotly_chart(fig22)
+    st.plotly_chart(fig)
+
+    # Filter data untuk tahun 2020, 2021, dan 2022
+    ppdb_filtered = ppdb[ppdb['tahun_diterima'].isin([20, 21, 22])]
+
+    # Menghitung jumlah siswa per kecamatan
+    ppdb_grouped = ppdb_filtered.groupby(['kecamatan', 'tahun_diterima'])['nama_pendaftar'].count().reset_index()
+    ppdb_grouped.rename(columns={'nama_pendaftar':'jumlah_siswa'}, inplace=True)
+
+    # Mengatur kombinasi warna
+    color_map = {'2020': '#0077c2', '2021': '#b2301d', '2022': '#f6a800'}
+
+    # Membuat histogram
+    fig = px.histogram(ppdb_grouped, x='kecamatan', y='jumlah_siswa', color='tahun_diterima', barmode='group',
+                    color_discrete_map=color_map)
+
+    # Menambahkan judul dan label pada plot
+    fig.update_layout(
+        title={
+            'text': "Jumlah Siswa PPDB Berdasarkan Kecamatan Asal per Tahunnya",
+            'x':0.5,
+            'y':0.95,
+            'xanchor': 'center',
+            'yanchor': 'top'
+        },
+        xaxis_title="Kecamatan Asal",
+        yaxis_title="Jumlah Siswa",
+        font=dict(size=12)
+    )
+
+    # Menampilkan plot
+    st.plotly_chart(fig)
+
     
     percent_saintek = {}
     percent_soshum = {}
@@ -344,25 +300,36 @@ with st.container():
     # Display the highlighted dataframe using Streamlit
     st.write(highlighted)
     
+    #tools visualisasi, presresntasi deman antara soshum dan saintek
+    ppdb['total_skor'] = ppdb.sum(axis=1)
+    ppdb['kategori'] = 'SAINTEK'
+    total_jurusan = ppdb.groupby('pilihan')['skor'].count()
+    ppdb.loc[(ppdb[['matematika1', 'matematika2', 'matematika3', 'matematika4', 'matematika5', 'ipa1', 'ipa2', 'ipa3', 'ipa4', 'ipa5']].sum(axis=1) < ppdb[['bindo1', 'bindo2', 'bindo3', 'bindo4', 'bindo5', 'ips1', 'ips2', 'ips3', 'ips4', 'ips5']].sum(axis=1)) & (ppdb[['ppkn1', 'ppkn2', 'ppkn3', 'ppkn4', 'ppkn5', 'bing1', 'bing2', 'bing3', 'bing4', 'bing5']].sum(axis=1) > 0), 'kategori'] = 'SOSHUM'
+    total_saintek = ppdb.loc[ppdb['kategori'] == 'SAINTEK', 'total_skor'].count()
+    total_soshum = ppdb.loc[ppdb['kategori'] == 'SOSHUM', 'total_skor'].count()
+    persentase_saintek = ppdb.loc[ppdb['kategori'] == 'SAINTEK'].groupby('pilihan')['total_skor'].count() / total_jurusan * 100
+    persentase_soshum = ppdb.loc[ppdb['kategori'] == 'SOSHUM'].groupby('pilihan')['total_skor'].count() / total_jurusan * 100
+
     #kode menampilkan chart untuk pendafatar yang memilih mapel saintek atau soshum
     fig = go.Figure()
-    for col in df_percent.columns:
-        fig.add_trace(go.Bar(x=df_percent.index, y=df_percent[col], name=col))
-
+    fig.add_trace(go.Bar(
+        x=total_jurusan.index,
+        y=persentase_saintek,
+        name='SAINTEK'
+    ))
+    fig.add_trace(go.Bar(
+        x=total_jurusan.index,
+        y=persentase_soshum,
+        name='SOSHUM'
+    ))
     fig.update_layout(
-        title={
-            'text': "Presentase Jumlah Peserta yang Memilih Mapel Saintek atau Soshum pada Setiap Jurusan",
-            'y':0.95,
-            'x':0.5,
-            'xanchor': 'center',
-            'yanchor': 'top',
-            'font': {'size': 16}
-        },
-        xaxis_title="Kelompok Pilihan",
-        yaxis_title="Presentase (%)",
+        title='Perbandingan Siswa yang menyukai Mapel SAINTEK dan SOSHUM per Jurusan',
+        xaxis_title='Jurusan',
+        yaxis_title='Persentase Siswa (%)',
+        barmode='stack'
     )
-    
     st.plotly_chart(fig)
+
     
     #kode untuk manampilkan chart jumlah distribusi skor di SMKN 1 Cibinong
     fig = px.histogram(ppdb, x='skor', color='tahun_diterima', nbins=12, opacity=0.6,
@@ -372,7 +339,7 @@ with st.container():
     fig.update_layout(
         xaxis=dict(title='Score'),
         yaxis=dict(title='Count'),
-        title=dict(text='Histogram of Score Distribution SMKN 1 Cibinong', font=dict(size=16), x=0.5),
+        title=dict(text='Histogram of Student Score Distribution SMKN 1 Cibinong', font=dict(size=16), x=0.5),
         hovermode='x',
         legend=dict(title='Year Accepted', orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1)
     )
@@ -437,6 +404,89 @@ with st.container():
     st.plotly_chart(fig21)
     st.plotly_chart(fig22)
     
+    #data yang sama dengan di atas namun dengan menghapus outliers korelasinya pada ppdb 2020
+    # a list containing column names for each subject
+    mata_pelajaran = ['ppkn1', 'ppkn2', 'ppkn3', 'ppkn4', 'ppkn5', 
+                    'bindo1', 'bindo2', 'bindo3', 'bindo4', 'bindo5', 
+                    'matematika1', 'matematika2', 'matematika3', 'matematika4', 'matematika5', 
+                    'ipa1', 'ipa2', 'ipa3', 'ipa4', 'ipa5', 
+                    'ips1', 'ips2', 'ips3', 'ips4', 'ips5', 
+                    'bing1', 'bing2', 'bing3', 'bing4', 'bing5']
+
+    # create figure and axes objects with subplots
+    fig20 = go.Figure()
+    fig20.update_layout(title='Distribution of scores Box Plot in PPDB 2020 Data', title_x=0.5)
+
+    # add box plots for each subject
+    for pelajaran in mata_pelajaran:
+        # winsorize the data to remove outliers
+        winsorized_data = winsorize(ppdb20[pelajaran], limits=[0.05, 0.05])
+        
+        # add box plot with winsorized data
+        fig20.add_trace(go.Box(y=winsorized_data, name=pelajaran))
+
+    # update x-axis and y-axis labels
+    fig20.update_layout(xaxis_title='Subject', yaxis_title='Score')
+    
+    #data yang sama dengan di atas namun dengan menghapus outliers korelasinya pada ppdb 2020
+    # a list containing column names for each subject
+    mata_pelajaran = ['ppkn1', 'ppkn2', 'ppkn3', 'ppkn4', 'ppkn5', 
+                    'bindo1', 'bindo2', 'bindo3', 'bindo4', 'bindo5', 
+                    'matematika1', 'matematika2', 'matematika3', 'matematika4', 'matematika5', 
+                    'ipa1', 'ipa2', 'ipa3', 'ipa4', 'ipa5', 
+                    'ips1', 'ips2', 'ips3', 'ips4', 'ips5', 
+                    'bing1', 'bing2', 'bing3', 'bing4', 'bing5']
+
+    # create figure and axes objects with subplots
+    fig21 = go.Figure()
+    fig21.update_layout(title='Distribution of scores Box Plot in PPDB 2021 Data', title_x=0.5)
+
+    # add box plots for each subject
+    for pelajaran in mata_pelajaran:
+        # winsorize the data to remove outliers
+        winsorized_data = winsorize(ppdb21[pelajaran], limits=[0.05, 0.05])
+        
+        # add box plot with winsorized data
+        fig21.add_trace(go.Box(y=winsorized_data, name=pelajaran))
+
+    # update x-axis and y-axis labels
+    fig21.update_layout(xaxis_title='Subject', yaxis_title='Score')
+    
+    #data yang sama dengan di atas namun dengan menghapus outliers korelasinya pada ppdb 2020
+    # a list containing column names for each subject
+    mata_pelajaran = ['ppkn1', 'ppkn2', 'ppkn3', 'ppkn4', 'ppkn5', 
+                    'bindo1', 'bindo2', 'bindo3', 'bindo4', 'bindo5', 
+                    'matematika1', 'matematika2', 'matematika3', 'matematika4', 'matematika5', 
+                    'ipa1', 'ipa2', 'ipa3', 'ipa4', 'ipa5', 
+                    'ips1', 'ips2', 'ips3', 'ips4', 'ips5', 
+                    'bing1', 'bing2', 'bing3', 'bing4', 'bing5']
+
+    # create figure and axes objects with subplots
+    fig22 = go.Figure()
+    fig22.update_layout(title='Distribution of scores Box Plot in PPDB 2022 Data', title_x=0.5)
+
+    # add box plots for each subject
+    for pelajaran in mata_pelajaran:
+        # winsorize the data to remove outliers
+        winsorized_data = winsorize(ppdb22[pelajaran], limits=[0.05, 0.05])
+        
+        # add box plot with winsorized data
+        fig22.add_trace(go.Box(y=winsorized_data, name=pelajaran))
+
+    # update x-axis and y-axis labels
+    fig22.update_layout(xaxis_title='Subject', yaxis_title='Score')
+
+    #teks keterangan
+    st.markdown("""
+        <div class="des-title" style='text-align: center;'> Berikut jumlah distribusi dengan outliers korelasi antara skore<br>
+        dan mapel di SMKN 1 Cibinong.</div>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    st.plotly_chart(fig20)
+    st.plotly_chart(fig21)
+    st.plotly_chart(fig22)
+
     #Heatmap digunakan untuk melihat korelasi antara skor dalam PPDB 2020 pada setiap mata pelajaran.
     data = go.Heatmap(
                 z=ppdb20[mata_pelajaran].corr().values,
@@ -498,9 +548,9 @@ with st.container():
     
     #menampilkan chart 10 besar murid sekolah(SMP) yang mendaftar di SMKN 1 Cibinong
     school_count = ppdb.groupby('tahun_diterima').asal_sekolah.value_counts()
-    school_count_2020 = school_count[2020][:10]
-    school_count_2021 = school_count[2021][:10]
-    school_count_2022 = school_count[2022][:10]
+    school_count_2020 = school_count[20][:10]
+    school_count_2021 = school_count[21][:10]
+    school_count_2022 = school_count[22][:10]
 
     # Define colors
     colors_2020 = sns.color_palette('husl', len(school_count_2020)).as_hex()
@@ -534,25 +584,131 @@ with st.container():
     # Set the size of the figure
     fig.update_layout(height=1200, width=1000)
 
+    #display chart
+    st.plotly_chart(fig)
+    
+    mvp = {"school":[],"score":[]}
+    for i in range(ppdb.shape[0]):
+        if ppdb.iloc[i,:]['skor'] > ppdb['skor'].mean():
+            mvp["school"].append(ppdb.iloc[i,:]['asal_sekolah'])
+            mvp["score"].append(ppdb.iloc[i,:]['skor'])
+            
+    above_avg = pd.DataFrame(mvp)
+    top_5_school = above_avg.school.value_counts()[:10]
+
+    fig = px.bar(x=top_5_school.index, y=top_5_school, color=top_5_school.index, color_discrete_sequence=px.colors.sequential.Magma)
+    fig.update_layout(title="Top 10 Above Average Registrant's Junior High School Score in 2020-2022",
+                    xaxis_title="Junior High School",
+                    yaxis_title="Quantity")
+    
+    #teks keterangan
+    st.markdown("""
+        <div class="des-title" style='text-align: center;'> Berikut top 10 sekolah dengan nilai pendaftar tertinggi.</div>
+    """, unsafe_allow_html=True)
+    
     st.plotly_chart(fig)
 
-    
-    # def send_email(subject, message, to_email):
-    # # Implementasi fungsi send_email di sini
+    #kompetensi skill paling laku
+    comp_by_score = pd.DataFrame(ppdb.groupby(['pilihan','tahun_diterima']).agg(['mean','count']).skor)
+    comp_avg_2020 = comp_by_score.xs(20, level="tahun_diterima")
+    comp_avg_2021 = comp_by_score.xs(21, level="tahun_diterima")
+    comp_avg_2022 = comp_by_score.xs(22, level="tahun_diterima")
 
-    #     def contact_us():
-    #         # Tampilkan formulir kontak
-    #         st.write("### Contact Us")
-    #         name = st.text_input("Name")
-    #         email = st.text_input("Email")
-    #         message = st.text_area("Message")
-    #         if st.button("Send"):
-    #             # Kirim email
-    #             if send_email(subject=f"Message from {name}",
-    #                         message=message,
-    #                         to_email="example@gmail.com"):
-    #                 st.success("Your message has been sent!")
-    #             else:
-    #                 st.error("Oops! Something went wrong.")
-                    
-    # send_email(subject, message, to_email)
+    # display results
+    st.write("2020 Average Scores by Choice:")
+    st.write(comp_avg_2020)
+
+    st.write("2021 Average Scores by Choice:")
+    st.write(comp_avg_2021)
+
+    st.write("2022 Average Scores by Choice:")
+    st.write(comp_avg_2022)
+    
+    # Group data by skill competencies and year of admission, and calculate mean and count
+    comp_by_score = ppdb.groupby(['pilihan','tahun_diterima']).agg(['mean','count'])['skor'].reset_index()
+
+    # Separate data by year of admission
+    comp_avg_2020 = comp_by_score[comp_by_score['tahun_diterima'] == 20]
+    comp_avg_2021 = comp_by_score[comp_by_score['tahun_diterima'] == 21]
+    comp_avg_2022 = comp_by_score[comp_by_score['tahun_diterima'] == 22]
+
+    # Create fig and subplots
+    fig = make_subplots(rows=3, cols=1, subplot_titles=("Number of Registrants by Skill Competencies in 2020",
+                                                        "Number of Registrants by Skill Competencies in 2021",
+                                                        "Number of Registrants by Skill Competencies in 2022"))
+
+    # Add trace for each subplot
+    fig.add_trace(
+        go.Bar(x=comp_avg_2020['pilihan'], y=comp_avg_2020['count'], name="2020"),
+        row=1, col=1
+    )
+
+    fig.add_trace(
+        go.Bar(x=comp_avg_2021['pilihan'], y=comp_avg_2021['count'], name="2021"),
+        row=2, col=1
+    )
+
+    fig.add_trace(
+        go.Bar(x=comp_avg_2022['pilihan'], y=comp_avg_2022['count'], name="2022"),
+        row=3, col=1
+    )
+
+    # Update layout
+    fig.update_layout(
+        height=1500, 
+        width=1000, 
+        margin=dict(t=150) # memberi jarak 100 pixel pada bagian atas judul
+    )
+
+
+    fig.update_xaxes(title_text="Skill Competencies", row=3, col=1)
+    fig.update_yaxes(title_text="Number of Registrants", row=2, col=1)
+
+    #teks keterangan
+    st.markdown("""
+        <div class="des-title" style='text-align: center;'> Jumlah pendaftar di setiap jurusan.</div>
+    """, unsafe_allow_html=True)
+    
+    st.plotly_chart(fig)
+
+        # Calculate mean score by skill competencies and year
+    comp_by_score = pd.DataFrame(ppdb.groupby(['pilihan', 'tahun_diterima']).agg(['mean'])['skor'])
+    comp_by_score.columns = ['mean_score']
+    comp_by_score.reset_index(inplace=True)
+
+    # Filter by year
+    comp_avg_2020 = comp_by_score[comp_by_score['tahun_diterima'] == 20]
+    comp_avg_2021 = comp_by_score[comp_by_score['tahun_diterima'] == 21]
+    comp_avg_2022 = comp_by_score[comp_by_score['tahun_diterima'] == 22]
+
+    # Create subplots
+    fig = make_subplots(rows=2, cols=2, subplot_titles=("Average Score by Skill Competencies in 2020",
+                                                        "Average Score by Skill Competencies in 2021",
+                                                        "Average Score by Skill Competencies in 2022",
+                                                        ""))
+
+    # Add traces to subplots
+    fig.add_trace(go.Bar(x=comp_avg_2020['pilihan'], y=comp_avg_2020['mean_score'], name='2020'), row=1, col=1)
+    fig.add_trace(go.Bar(x=comp_avg_2021['pilihan'], y=comp_avg_2021['mean_score'], name='2021'), row=1, col=2)
+    fig.add_trace(go.Bar(x=comp_avg_2022['pilihan'], y=comp_avg_2022['mean_score'], name='2022'), row=2, col=1)
+
+    # Update layout
+    fig.update_layout(height=1200, width=1000, title_text="Average Score by Skill Competencies in 2020-2022")
+    fig.update_xaxes(title_text="Skill Competencies", row=1, col=1)
+    fig.update_xaxes(title_text="Skill Competencies", row=1, col=2)
+    fig.update_xaxes(title_text="Skill Competencies", row=2, col=1)
+    fig.update_xaxes(title_text="Skill Competencies", row=2, col=2)
+    fig.update_yaxes(title_text="Average Score", row=1, col=1, range=[2800, 3050])
+    fig.update_yaxes(title_text="Average Score", row=1, col=2, range=[2800, 3050])
+    fig.update_yaxes(title_text="Average Score", row=2, col=1, range=[2800, 3050])
+    fig.update_yaxes(title_text="Average Score", row=2, col=2, range=[2800, 3050])
+
+    #teks keterangan
+    st.markdown("""
+        <div class="des-title" style='text-align: center;'>Kompetensi skill rata-rata dengan skor rata-rata tertinggi.</div>
+    """, unsafe_allow_html=True)
+    
+    # Show plot
+    st.plotly_chart(fig)
+    
+
