@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from xgboost import XGBClassifier
+import xgboost as xgb
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
 import optuna
@@ -23,7 +24,13 @@ from streamlit import session_state as state
 
 st.set_page_config(layout="wide")
 
+# model_xgb = xgb.Booster()
+# model_xgb.load_model("./models/model.json")
 
+# with open("./models/model.json", "r") as f:
+#     model_xgb = xgb.Booster()
+#     model_xgb.load_model(f)
+    
 with st.container():
     ppdb21= pd.read_csv("./ppdb_2021.csv")
     ppdb20= pd.read_csv("./ppdb_2020.csv")
@@ -40,6 +47,39 @@ with st.container():
     print(set(ppdb22 == ppdb21.columns))
     print(set(ppdb22 == ppdb20.columns))
     
+    def clean_pilihan_2021(pilihan):
+        pilihan = pilihan.split(' - ')[1]
+        pilihan = pilihan.split(' ')
+        try: 
+            pilihan.remove('DAN')
+        except: 
+            pass
+        pilihan = ''.join([sen[0] if sen[0] != 'M' else 'MM' for sen in pilihan])
+        pilihan = 'TFLM' if pilihan == "TFLMM" else pilihan
+        return pilihan
+
+    def clean_pilihan_2020(pilihan):
+        pilihan = pilihan.split(' - ')[1]
+        pilihan = pilihan.split(' ')
+        try: 
+            pilihan.remove('DAN')
+        except: 
+            pass
+        pilihan = ''.join([sen[0] if sen[0] != 'M' else 'MM' for sen in pilihan])
+        pilihan = 'TFLM' if pilihan == "TFLMM" else pilihan
+        return pilihan
+
+    def clean_pilihan_2022(pilihan):
+        pilihan = pilihan.strip()
+        pilihan = pilihan.split(' ')
+        try:
+            pilihan.remove('DAN')
+        except:
+            pass
+        pilihan = ''.join([sen[0] for sen in pilihan])
+        pilihan = 'TOI' if pilihan == 'TE' else pilihan
+        return pilihan
+
     #format penamaan buat rename
     rename_cols = lambda col_name: "_".join(re.split("/| ", col_name.lower())) if len(re.split("/| ", col_name.lower())) > 0 else col_name.lower()
 
@@ -50,7 +90,9 @@ with st.container():
         exec(f"ppdb{year}.rename(rename_cols, axis='columns', inplace=True)")
         exec(f"ppdb{year}.loc[:, 'agama1':'skor'] = ppdb{year}.loc[:, 'agama1':'skor'].astype(float)") # convert data type
         exec(f"ppdb{year}['tanggal_lahir'] = pd.to_datetime(ppdb{year}['tanggal_lahir'])") # convert to date time type
-    
+        exec(f"ppdb{year}['pilihan'] = ppdb{year}.pilihan.apply(clean_pilihan_20{year})")
+
+
     ppdb = pd.concat([ppdb20, ppdb21, ppdb22], ignore_index=True)
     
     #remove outliers ppdb2020
@@ -236,6 +278,19 @@ with st.container():
     model_acc = PrettyTable()
     model_acc.field_names = ["Competition", "Accuracy"]
 
+    best_params_models = {
+        'rpl': {'learning_rate': 0.00016186094336899463, 'max_depth': 4, 'n_estimators': 900, 'min_child_weight': 10, 'subsample': 0.8, 'colsample_bytree': 0.7},
+        'toi': {'learning_rate': 0.011210608133115814, 'max_depth': 10, 'n_estimators': 850, 'min_child_weight': 2, 'subsample': 0.7, 'colsample_bytree': 0.6},
+        'mm': {'learning_rate': 0.0014625676483288616, 'max_depth': 9, 'n_estimators': 150, 'min_child_weight': 2, 'subsample': 0.7, 'colsample_bytree': 0.8},
+        'tkj': {'learning_rate': 0.00010704587052700323, 'max_depth': 10, 'n_estimators': 350, 'min_child_weight': 5, 'subsample': 0.6, 'colsample_bytree': 0.8},
+        'sija': {'learning_rate': 0.037862663956716905, 'max_depth': 4, 'n_estimators': 1000, 'min_child_weight': 2, 'subsample': 0.7, 'colsample_bytree': 0.9},
+        'tflm': {'learning_rate': 0.02865093595842963, 'max_depth': 2, 'n_estimators': 650, 'min_child_weight': 2, 'subsample': 0.9, 'colsample_bytree': 0.8},
+        'dpib': {'learning_rate': 0.03717597979731156, 'max_depth': 9, 'n_estimators': 50, 'min_child_weight': 2, 'subsample': 0.6, 'colsample_bytree': 0.7},
+        'tp': {'learning_rate': 0.02600101163772328, 'max_depth': 2, 'n_estimators': 200, 'min_child_weight': 2, 'subsample': 0.6, 'colsample_bytree': 0.9},
+        'tkro': {'learning_rate': 0.002009698797092612, 'max_depth': 8, 'n_estimators': 800, 'min_child_weight': 3, 'subsample': 0.9, 'colsample_bytree': 0.9},
+        'bkp': {'learning_rate': 0.0594738621683631, 'max_depth': 8, 'n_estimators': 450, 'min_child_weight': 2, 'subsample': 0.9, 'colsample_bytree': 0.9}
+    }
+
     # Loop through each competition
     for i in ranked_comp:
         comp_name = i.pilihan.unique()[0].lower()
@@ -248,10 +303,10 @@ with st.container():
 
         X_train, X_test, y_train, y_test = train_test_split(x, y, test_size=t_size, random_state=13, stratify=y)
 
-        study = optuna.create_study(direction='maximize')
-        study.optimize(objective, n_trials=100)
+        # study = optuna.create_study(direction='maximize')
+        # study.optimize(objective, n_trials=100)
 
-        best_params = study.best_params
+        best_params = best_params_models[f'{comp_name}']
         st.write(f'Best hyperparameters for {comp_name}: {best_params}')
 
         model = XGBClassifier(**best_params)
@@ -278,8 +333,8 @@ with st.container():
 # with open("model.pkl", "rb") as f:
 #     model=pickle.load(f)
     
-with open("ppdb.pkl", "rb") as a:
-    ppdb=pickle.load(a)
+# with open("ppdb.pkl", "rb") as a:
+#     ppdb=pickle.load(a)
     
 # with st.container():
 #     # test.predict(123)
@@ -363,3 +418,6 @@ with open("ppdb.pkl", "rb") as a:
     # Make a prediction and display the result
     prediction = predict_chances(score)
     st.write("Based on your competition scores, you have a chance of: ", prediction)
+
+
+    

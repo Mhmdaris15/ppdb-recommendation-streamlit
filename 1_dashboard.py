@@ -15,10 +15,12 @@ from plotly.subplots import make_subplots
 import optuna
 from scipy.stats.mstats import winsorize
 from streamlit import session_state as state
+import pickle
 
-ppdb21= pd.read_csv("ppdb_2021.csv")
-ppdb20= pd.read_csv("ppdb_2020.csv")
-ppdb22= pd.read_csv("ppdb_2022.csv")
+ppdb20 = pd.read_csv("ppdb_2020.csv")
+ppdb21 = pd.read_csv("ppdb_2021.csv")
+ppdb22 = pd.read_csv("ppdb_2022.csv")
+
 
 
 # with st.sidebar:
@@ -71,6 +73,40 @@ with st.container():
     print(set(ppdb22 == ppdb21.columns))
     print(set(ppdb22 == ppdb20.columns))
     
+    def clean_pilihan_2021(pilihan):
+        pilihan = pilihan.split(' - ')[1]
+        pilihan = pilihan.split(' ')
+        try: 
+            pilihan.remove('DAN')
+        except: 
+            pass
+        pilihan = ''.join([sen[0] if sen[0] != 'M' else 'MM' for sen in pilihan])
+        pilihan = 'TFLM' if pilihan == "TFLMM" else pilihan
+        return pilihan
+
+    def clean_pilihan_2020(pilihan):
+        pilihan = pilihan.split(' - ')[1]
+        pilihan = pilihan.split(' ')
+        try: 
+            pilihan.remove('DAN')
+        except: 
+            pass
+        pilihan = ''.join([sen[0] if sen[0] != 'M' else 'MM' for sen in pilihan])
+        pilihan = 'TFLM' if pilihan == "TFLMM" else pilihan
+        return pilihan
+
+    def clean_pilihan_2022(pilihan):
+        pilihan = pilihan.strip()
+        pilihan = pilihan.split(' ')
+        try:
+            pilihan.remove('DAN')
+        except:
+            pass
+        pilihan = ''.join([sen[0] for sen in pilihan])
+        pilihan = 'TOI' if pilihan == 'TE' else pilihan
+        return pilihan
+
+
     #format penamaan buat rename
     rename_cols = lambda col_name: "_".join(re.split("/| ", col_name.lower())) if len(re.split("/| ", col_name.lower())) > 0 else col_name.lower()
 
@@ -81,6 +117,7 @@ with st.container():
         exec(f"ppdb{year}.rename(rename_cols, axis='columns', inplace=True)")
         exec(f"ppdb{year}.loc[:, 'agama1':'skor'] = ppdb{year}.loc[:, 'agama1':'skor'].astype(float)") # convert data type
         exec(f"ppdb{year}['tanggal_lahir'] = pd.to_datetime(ppdb{year}['tanggal_lahir'])") # convert to date time type
+        exec(f"ppdb{year}['pilihan'] = ppdb{year}.pilihan.apply(clean_pilihan_20{year})")
     
     ppdb = pd.concat([ppdb20, ppdb21, ppdb22], ignore_index=True)
     
@@ -711,4 +748,5 @@ with st.container():
     # Show plot
     st.plotly_chart(fig)
     
+    st.write("End ")
 
