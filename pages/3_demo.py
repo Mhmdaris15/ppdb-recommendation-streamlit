@@ -413,7 +413,86 @@ with st.container():
     st.write("Enter your competition score below:")
     
     # Combine the features into a single numpy array
-    score = st.number_input("Skill Competition 1")
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>Agama</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Agama1 = st.number_input("Agama1:")
+    Agama2 = st.number_input("Agama2:")
+    Agama3 = st.number_input("Agama3:")
+    Agama4 = st.number_input("Agama4:")
+    Agama5 = st.number_input("Agama5:")
+    
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>Bahasa Inggrris</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Bing1 = st.number_input("Bing1:")
+    Bing2 = st.number_input("Bing2:")
+    Bing3 = st.number_input("Bing3:")
+    Bing4 = st.number_input("Bing4:")
+    Bing5 = st.number_input("Bing5:")
+    
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>Bahasa Indonesia</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Bindo1 = st.number_input("Bindo1:")
+    Bindo2 = st.number_input("Bindo2:")
+    Bindo3 = st.number_input("Bindo3:")
+    Bindo4 = st.number_input("Bindo4:")
+    Bindo5 = st.number_input("Bindo5:")
+    
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>MTK</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Mtk1 = st.number_input("Mtk1:")
+    Mtk2 = st.number_input("Mtk2:")
+    Mtk3 = st.number_input("Mtk3:")
+    Mtk4 = st.number_input("Mtk4:")
+    Mtk5 = st.number_input("Mtk5:")
+    
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>IPA</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Ipa1 = st.number_input("Ipa1:")
+    Ipa2 = st.number_input("Ipa2:")
+    Ipa3 = st.number_input("Ipa3:")
+    Ipa4 = st.number_input("Ipa4:")
+    Ipa5 = st.number_input("Ipa5:")
+    
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>IPS</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Ips1 = st.number_input("Ips1:")
+    Ips2 = st.number_input("Ips2:")
+    Ips3 = st.number_input("Ips3:")
+    Ips4 = st.number_input("Ips4:")
+    Ips5 = st.number_input("Ips5:")
+    
+    st.markdown("""
+        <h1 class="title" style='text-align: center;'>PPKn</h1>
+        <br><br>
+    """, unsafe_allow_html=True)
+    
+    Ppkn1 = st.number_input("Ppkn1:")
+    Ppkn2 = st.number_input("Ppkn2:")
+    Ppkn3 = st.number_input("Ppkn3:")
+    Ppkn4 = st.number_input("Ppkn4:")
+    Ppkn5 = st.number_input("Ppkn5:")
+    
+    values=[Ppkn1,Ppkn2,Ppkn3,Ppkn4,Ppkn5,Agama1,Agama2,Agama3,Agama4,Agama5,Ipa1,Ipa2,Ipa3,Ipa4,Ipa5,Ips1,Ips2,Ips3,Ips4,Ips5,
+            Bindo1,Bindo2,Bindo3,Bindo4,Bindo5,Bing1,Bing2,Bing3,Bing4,Bing5,Mtk1,Mtk2,Mtk3,Mtk4,Mtk5]
+    score= sum(values)
 
     # Make a prediction and display the result
     prediction = predict_chances(score)

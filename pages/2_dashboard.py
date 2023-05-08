@@ -38,10 +38,11 @@ ppdb22 = pd.read_csv("ppdb_2022.csv")
     
 with st.container():
     # data.info()
-    logo, title_text, logo1 = st.columns([1,3,1])
+    logo2, title_text, logo = st.columns([1,3,1])
     
+    logo2.image("img/logo2.png",width=50)
     logo.image("img/logo.png",width=70)
-    logo1.image("img/logo1.png",width=70)
+    
     
     title_text.markdown("""
     <div class="header-logo" style="display: flex; justify-content:space-around; align-items:center;">
