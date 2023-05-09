@@ -44,6 +44,7 @@ with st.container():
         col2.markdown("""
         <div class="des-title" style='text-align: center;'>Web ini terdiri dari beberapa page yakni, landing page untuk 
         penjelasan awal sekaligus perkenalan mengenai projek kami, dashboard page berisi analisis data(visualisasi data), & 
-        demo page untuk mengakses model kami.</div>
+        demo page untuk mengakses model kami,our team page untuk memberi tahu siapa saja yang terkait dalam projek ini, & contact us untuk 
+        menhubungi pihak kami jika ada sesuatu.</div>
         <br><br>
     """, unsafe_allow_html=True)
